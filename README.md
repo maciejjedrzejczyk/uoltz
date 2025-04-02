@@ -6,7 +6,7 @@ Uoltz is a powerful, customizable bot for Signal messenger that integrates with 
 
 - **AI-Powered Responses**: Connect to any LLM model running in LMStudio
 - **Group Chat Support**: Interact with the bot in both direct messages and group chats
-- **Customizable Nickname**: Configure how users mention the bot (e.g., @bot, @assistant, @waltz)
+- **Customizable Nickname**: Configure how users mention the bot (e.g., @bot, @assistant, @uoltz)
 - **Dynamic Group Handling**: Works with any group you add the bot to, no hardcoding required
 - **Persistent Configuration**: Settings and group information are saved between restarts
 - **Comprehensive Logging**: Detailed logs to help with debugging and monitoring
@@ -25,7 +25,7 @@ Uoltz is a powerful, customizable bot for Signal messenger that integrates with 
 1. Clone this repository:
    ```bash
    git clone https://github.com/maciejjedrzejczyk/uoltz.git
-   cd signal-bot
+   cd uoltz
    ```
 
 2. Install the required Python packages:
@@ -38,7 +38,7 @@ Uoltz is a powerful, customizable bot for Signal messenger that integrates with 
 The bot can be configured through command-line arguments or a configuration file:
 
 ```bash
-python signal_bot.py --model "llama-3.2-3b-instruct" --nickname "@assistant" --log-level INFO --test-phone "+1234567890"
+python signal_bot.py --model "llama-3.2-3b-instruct" --nickname "@uoltz" --log-level INFO --test-phone "+1234567890"
 ```
 
 Available command-line options:
@@ -84,13 +84,13 @@ To stop the bot, press Ctrl+C.
 ### Direct Messages
 
 1. Start a direct conversation with the bot's phone number in Signal
-2. Send a message that includes the bot's nickname (e.g., "@bot tell me a joke")
+2. Send a message that includes the bot's nickname your configured earlier (e.g., "@bot tell me a joke")
 3. The bot will respond with an AI-generated answer
 
 ### Group Chats
 
 1. Add the bot to a Signal group
-2. Mention the bot in your message (e.g., "@bot what's the weather like today?")
+2. Mention the bot in your message (e.g., "@bot tell me a joke about Donald Duck?")
 3. The bot will respond in the group chat with an AI-generated answer
 
 ## Customizing the LLM
@@ -131,14 +131,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
 
 ## Acknowledgments
 
 - [signal-cli](https://github.com/AsamK/signal-cli) for providing the command-line interface to Signal
 - [LMStudio](https://lmstudio.ai/) for the local LLM hosting
 - All contributors and users of this bot
-
----
-
-Feel free to customize this documentation to match your specific implementation and preferences. The above template provides a comprehensive starting point that covers all the major aspects of your Signal bot.
