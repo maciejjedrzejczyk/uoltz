@@ -1,6 +1,6 @@
 # Uoltz - a Signal Bot with local LLM Integration
 
-Uoltz is in my (https://lmstudio.ai/). This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
+This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
 
 ![Uoltz Bot|883×1920,10%](./uoltz-animation.gif)
 
