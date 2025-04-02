@@ -1,8 +1,8 @@
 # Uoltz - a Signal Bot with local LLM Integration
 
-Uoltz is a powerful, customizable bot for Signal messenger that integrates with local LLMs through [LMStudio](https://lmstudio.ai/). This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
+Uoltz is in my (https://lmstudio.ai/). This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
 
-![Uoltz Bot](./uoltz-diagram.png)
+![Uoltz Bot|883×1920,80%](./uoltz-animation.gif)
 
 ## Features
 
@@ -14,6 +14,32 @@ Uoltz is a powerful, customizable bot for Signal messenger that integrates with 
 - **Comprehensive Logging**: Detailed logs to help with debugging and monitoring
 - **UUID Support**: Works with both phone number and UUID-based Signal users
 - **Configurable via CLI**: Easy command-line options for customization
+
+## How does Uoltz work
+
+![Uoltz Bot](./uoltz-diagram.png)
+
+Here's a detailed description of each step in the flow:
+
+### Step 1: User Message
+A user sends a message in Signal that mentions the bot (e.g., "@waltz tell me a joke"). This message is sent through the Signal messaging platform, initiating the interaction flow.
+
+### Step 2: Capture Message
+The Signal Bot (signal_bot.py) continuously listens for incoming messages through the Signal CLI interface. When a message arrives, the bot captures it and processes the content to determine if it contains a mention of the bot's nickname (@waltz).
+
+### Step 3: Submit Prompt to LMStudio
+Once the bot detects it has been mentioned, it extracts the actual query by removing the mention prefix ("tell me a joke"). The bot then formats this query and submits it as a prompt to LMStudio's API, which hosts the local language model.
+
+### Step 4: Prompt Response
+LMStudio processes the prompt using the configured language model (e.g., Llama 3.2) and generates an appropriate response. This response is then sent back to the Signal Bot as a completion.
+
+### Step 5: Forward Prompt Response
+The Signal Bot receives the AI-generated response from LMStudio and formats it appropriately. It then uses the Signal CLI to send this response back to the original conversation, whether it's a direct message or a group chat.
+
+### Step 6: User Receives Response
+The user receives the AI-generated response through Signal. In the example shown, the bot responds to the joke request with the punchline "Because it was two-tired."
+
+For more information about the architecture and components, please refer to [this document](./architecture.md).
 
 ## Prerequisites
 
