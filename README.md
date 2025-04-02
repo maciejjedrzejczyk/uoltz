@@ -2,6 +2,8 @@
 
 Uoltz is a powerful, customizable bot for Signal messenger that integrates with local LLMs through [LMStudio](https://lmstudio.ai/). This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
 
+![Uoltz Bot](./uoltz-diagram.png)
+
 ## Features
 
 - **AI-Powered Responses**: Connect to any LLM model running in LMStudio
