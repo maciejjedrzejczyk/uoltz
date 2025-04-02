@@ -24,7 +24,7 @@ Uoltz is a powerful, customizable bot for Signal messenger that integrates with 
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/maciejjedrzejczyk/signal-bot.git
+   git clone https://github.com/maciejjedrzejczyk/uoltz.git
    cd signal-bot
    ```
 
