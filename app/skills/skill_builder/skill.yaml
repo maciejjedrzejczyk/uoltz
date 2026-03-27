@@ -1,0 +1,11 @@
+name: skill_builder
+description: >
+  Meta-skill that creates new skills for the bot. Describe what you want
+  in natural language and it generates the complete skill folder
+  (skill.yaml + Python module) ready to use after a restart.
+version: "1.0.0"
+enabled: true
+
+tools:
+  - "builder:create_skill"
+  - "builder:list_skills_on_disk"

@@ -1,168 +1,289 @@
-# Uoltz - a Signal Bot with local LLM Integration
+# Signal AI Agent
 
-This bot allows you to interact with AI language models directly from your Signal chats, both in direct messages and group conversations.
-
-![Uoltz Bot|883×1920,10%](./uoltz-animation.gif)
+A local-first AI chatbot for [Signal](https://signal.org/) messenger with pluggable skills, voice transcription, multi-agent orchestration, and proactive scheduled tasks — powered by any OpenAI-compatible LLM server.
 
 ## Features
 
-- **AI-Powered Responses**: Connect to any LLM model running in LMStudio
-- **Group Chat Support**: Interact with the bot in both direct messages and group chats
-- **Customizable Nickname**: Configure how users mention the bot (e.g., @bot, @assistant, @uoltz)
-- **Dynamic Group Handling**: Works with any group you add the bot to, no hardcoding required
-- **Persistent Configuration**: Settings and group information are saved between restarts
-- **Comprehensive Logging**: Detailed logs to help with debugging and monitoring
-- **UUID Support**: Works with both phone number and UUID-based Signal users
-- **Configurable via CLI**: Easy command-line options for customization
+- **100% local** — your LLM, your data, no cloud APIs required
+- **Any OpenAI-compatible backend** — LM Studio, Ollama, vLLM, llama.cpp
+- **Pluggable skill system** — drop a folder in `app/skills/`, restart, done
+- **Voice messages** — automatic transcription via local Whisper
+- **Multi-agent brainstorming** — parallel ideation with Strands Agents Graph pattern
+- **Real-time research** — web + news search with AI synthesis
+- **Proactive scheduler** — cron-based jobs that send you updates automatically
+- **Signal account management** — register numbers, manage groups, all from chat
+- **Runtime controls** — switch models, toggle formatting, adjust context window, all via slash commands
+- **Prerequisite checks** — setup scripts auto-detect and install missing tools
+- **Dual deployment** — run on bare metal or in Docker with one command
 
-## How does Uoltz work
+## Architecture
 
-![Uoltz Bot](./uoltz-diagram.png)
+```
+Signal App ↔ signal-cli-rest-api (Docker) ↔ Python Bot ↔ Strands Agent ↔ Local LLM
+                                                 │
+                                          ┌──────┴──────┐
+                                    Skill Registry   Scheduler
+                                  (auto-discovered)  (cron jobs)
+```
 
-Here's a detailed description of each step in the flow:
+## Quick Start
 
-### Step 1: User Message
-A user sends a message in Signal that mentions the bot (e.g., "@waltz tell me a joke"). This message is sent through the Signal messaging platform, initiating the interaction flow.
+### Prerequisites
 
-### Step 2: Capture Message
-The Signal Bot (signal_bot.py) continuously listens for incoming messages through the Signal CLI interface. When a message arrives, the bot captures it and processes the content to determine if it contains a mention of the bot's nickname (@waltz).
+The setup scripts check for these automatically and will install what they can:
 
-### Step 3: Submit Prompt to LMStudio
-Once the bot detects it has been mentioned, it extracts the actual query by removing the mention prefix ("tell me a joke"). The bot then formats this query and submits it as a prompt to LMStudio's API, which hosts the local language model.
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/) (for host mode)
+- Docker or Finch (for container mode and signal-api)
+- `ffmpeg` (for voice transcription)
+- `curl`
+- An OpenAI-compatible LLM server ([LM Studio](https://lmstudio.ai), [Ollama](https://ollama.ai), etc.)
 
-### Step 4: Prompt Response
-LMStudio processes the prompt using the configured language model (e.g., Llama 3.2) and generates an appropriate response. This response is then sent back to the Signal Bot as a completion.
+### 1. Clone and configure
 
-### Step 5: Forward Prompt Response
-The Signal Bot receives the AI-generated response from LMStudio and formats it appropriately. It then uses the Signal CLI to send this response back to the original conversation, whether it's a direct message or a group chat.
+```bash
+git clone https://github.com/youruser/signal-agent.git
+cd signal-agent
+cp .env.example .env
+# Edit .env — set your Signal number and LLM server details
+```
 
-### Step 6: User Receives Response
-The user receives the AI-generated response through Signal. In the example shown, the bot responds to the joke request with the punchline "Because it was two-tired."
+### 2. Start the LLM server
 
-For more information about the architecture and components, please refer to [this document](./architecture.md).
+Start your local LLM with tool-calling support:
 
-## Prerequisites
+- **LM Studio**: Load a model (e.g. Qwen 2.5 14B), enable "Serve on Local Network", start the server
+- **Ollama**: `ollama serve` then `ollama pull qwen2.5:14b`
 
-- Python 3.7+ installed on your system
-- A registered Signal account for the bot (with a dedicated phone number). For more information, please refer to [signal-cli documentation](https://github.com/AsamK/signal-cli/wiki/Registration-with-captcha).
-- [signal-cli](https://github.com/AsamK/signal-cli) installed and running in a Docker container
-- [LMStudio](https://lmstudio.ai/) running with at least one local model
+### 3. Run the bot
 
-## Installation
+**Option A — Host mode** (recommended for development, gives access to local filesystem):
 
-1. Clone this repository:
+```bash
+./scripts/run-host.sh
+```
+
+Automatically: checks prerequisites → installs missing tools → stops any Docker bot → sets up Python venv → installs dependencies → launches the bot. Signal-api runs in Docker.
+
+**Option B — Docker mode** (fully containerized):
+
+```bash
+./scripts/up.sh
+```
+
+Builds and starts both signal-api and the bot as containers.
+
+### 4. Connect Signal
+
+**Link an existing account** (recommended):
+
+1. Open `http://localhost:9922/v1/qrcodelink?device_name=signal-agent`
+2. On your phone: Signal → Settings → Linked Devices → scan the QR code
+
+**Register a new number:**
+
+```bash
+# May require a captcha — see app/skills/signal_admin/account.py for details
+curl -X POST http://localhost:9922/v1/register/+1234567890
+curl -X POST http://localhost:9922/v1/register/+1234567890/verify/CODE
+```
+
+### 5. Send a message
+
+Text or voice-message the bot's number from Signal. Try:
+- "Hello, what can you do?"
+- "Search the web for the latest Python release"
+- "Brainstorm ideas for a personal productivity app"
+- `/help` for all commands
+
+## Slash Commands
+
+All commands respond instantly without hitting the LLM.
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available commands |
+| `/model` | Show current model, server, temperature, max tokens |
+| `/model list` | List all models on the LLM server (numbered) |
+| `/model load <#\|name>` | Switch model by index number, partial name, or full name |
+| `/maxlen <n>` | Set max response length in tokens |
+| `/context <n>` | Reload model on server with new context window (LM Studio) |
+| `/skills` | List all loaded skills and their tools |
+| `/schedules` | List all active scheduled jobs |
+| `/md on\|off` | Toggle markdown formatting in responses |
+| `/debug on\|off` | Show execution metrics (cycles, tokens, duration) after each response |
+
+## Built-in Skills
+
+Skills are auto-discovered from `app/skills/`. Each skill is a folder with a `skill.yaml` manifest and Python tool modules.
+
+| Skill | Tools | Description |
+|-------|-------|-------------|
+| `web_search` | `web_search` | DuckDuckGo search, no API key needed |
+| `research` | `research_topic` | Multi-source web + news search with date verification and AI synthesis. Best for factual lookups: weather, stock prices, current events |
+| `brainstorm` | `brainstorm_topic` | Multi-agent parallel ideation using Strands Graph pattern. Decomposes topics through 4 specialist agents (visionary, critic, researcher, pragmatist) then synthesizes a report. Saves results to `data/brainstorms/` |
+| `notes` | `save_note`, `list_notes`, `read_note` | Local JSON-backed note-taking |
+| `shell` | `run_shell_command` | Guarded local shell command execution (dangerous commands blocked) |
+| `signal_admin` | 9 tools | Register/verify numbers, link devices, create/delete groups, send messages to individuals and groups |
+
+## Proactive Scheduler
+
+The bot can send you messages on a schedule without you asking. Jobs are defined as YAML files in `schedules/`.
+
+### Creating a scheduled job
+
+Create a file in `schedules/` (e.g. `schedules/my_job.yaml`):
+
+```yaml
+name: Morning Weather
+schedule: "0 7 * * *"           # cron expression: 7:00 AM daily
+recipient: "+1234567890"        # who receives the message
+prompt: >
+  Research the current weather in Warsaw, Poland.
+  Give me a brief forecast for today.
+enabled: true
+```
+
+### Cron expression examples
+
+| Expression | Meaning |
+|-----------|---------|
+| `0 7 * * *` | Every day at 7:00 AM |
+| `0 7 * * 1-5` | Weekdays at 7:00 AM |
+| `*/10 * * * *` | Every 10 minutes |
+| `0 9,18 * * *` | Twice daily at 9 AM and 6 PM |
+| `0 8 * * 1` | Every Monday at 8:00 AM |
+
+### Included examples
+
+| File | Schedule | What it does |
+|------|----------|-------------|
+| `morning_weather.yaml` | Daily 7 AM | Weather forecast for Warsaw |
+| `amzn_stock.yaml` | Every 10 min | AMZN stock price check |
+| `_examples.yaml` | (disabled) | Template showing the format |
+
+Jobs are loaded at bot startup. Use `/schedules` to verify what's active.
+
+## Voice Messages
+
+Send a voice note to the bot and it will:
+
+1. 🎤 Acknowledge with "Transcribing voice message..."
+2. 📝 Show you what it heard (transcribed text)
+3. ⏳ Process the transcribed text through the agent
+4. Reply with the answer
+
+Transcription runs locally via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (no cloud APIs). Configure the model size in `.env`:
+
+```env
+WHISPER_MODEL=base    # tiny, base, small, medium, large-v3
+WHISPER_DEVICE=cpu
+WHISPER_COMPUTE_TYPE=int8
+```
+
+## Creating a New Skill
+
+1. Copy the template:
    ```bash
-   git clone https://github.com/maciejjedrzejczyk/uoltz.git
-   cd uoltz
+   cp -r app/skills/_template app/skills/my_skill
    ```
 
-2. Install the required Python packages:
-   ```bash
-   pip install requests
+2. Edit `app/skills/my_skill/skill.yaml`:
+   ```yaml
+   name: my_skill
+   description: What this skill does.
+   version: "1.0.0"
+   enabled: true
+   tools:
+     - "my_module:my_tool_function"
    ```
+
+3. Implement your tools in `app/skills/my_skill/my_module.py` using the `@tool` decorator from Strands
+
+4. Restart the bot — skills are auto-discovered from the `app/skills/` directory
+
+Set `enabled: false` in `skill.yaml` to disable a skill without deleting it.
+
+## Scripts
+
+All scripts include prerequisite checks and will guide you through installing missing tools.
+
+| Script | Description |
+|--------|-------------|
+| `scripts/run-host.sh` | Run bot on host (checks prereqs, sets up venv, launches) |
+| `scripts/run-host.sh --stop` | Switch .env back to Docker mode |
+| `scripts/run-docker.sh` | Switch to Docker mode and start containers |
+| `scripts/up.sh` | Build + start all Docker services |
+| `scripts/down.sh` | Stop all Docker services |
+| `scripts/reload.sh` | Rebuild + restart bot container only |
+| `scripts/build.sh` | Build bot container image |
+| `scripts/logs.sh` | Follow bot logs (`logs.sh signal-api` for Signal API) |
+
+## Project Structure
+
+```
+signal-agent/
+├── app/                        # Bot source code
+│   ├── bot.py                  # Main loop: polls Signal, routes messages
+│   ├── agent.py                # Agent factory, model management
+│   ├── config.py               # Centralized config from .env
+│   ├── runtime.py              # Mutable runtime state (toggles)
+│   ├── signal_client.py        # Signal REST API client
+│   ├── transcribe.py           # Whisper voice transcription
+│   ├── scheduler.py            # Proactive cron-based job scheduler
+│   ├── requirements.txt
+│   └── skills/                 # Auto-discovered skill plugins
+│       ├── registry.py         # Skill discovery engine
+│       ├── _template/          # Starter template for new skills
+│       ├── brainstorm/         # Multi-agent brainstorming (Graph)
+│       ├── notes/              # Local note-taking
+│       ├── research/           # Real-time web research
+│       ├── shell/              # Guarded shell commands
+│       ├── signal_admin/       # Signal account management
+│       └── web_search/         # DuckDuckGo search
+├── schedules/                  # Cron job definitions (YAML)
+├── data/                       # Persistent data (gitignored)
+├── scripts/                    # Build/run/deploy toolkit
+├── docker-compose.yml
+├── Dockerfile
+├── .env.example                # Configuration template
+└── README.md
+```
 
 ## Configuration
 
-The bot can be configured through command-line arguments or a configuration file:
+All configuration is in `.env` (created from `.env.example`). The file supports two modes — the launcher scripts toggle between them automatically:
 
-```bash
-python signal_bot.py --model "llama-3.2-3b-instruct" --nickname "@uoltz" --log-level INFO --test-phone "+1234567890"
+```env
+# Docker mode (bot in container)
+LLM_BASE_URL=http://host.docker.internal:1234/v1
+SIGNAL_API_URL=http://signal-api:8080
+
+# Host mode (bot on bare metal)
+LLM_BASE_URL=http://localhost:1234/v1
+SIGNAL_API_URL=http://localhost:9922
 ```
 
-Available command-line options:
-- `--model`: The LLM model name to use in LMStudio (default: "local-model")
-- `--nickname`: The name users should use to mention the bot (default: "@bot")
-- `--config`: Path to the configuration file (default: "config.json")
-- `--log-level`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- `--test-phone`: Phone number to use for self-tests
+## LLM Server Compatibility
 
-The first time you run the bot, it will create a default configuration file (`config.json`) that you can edit:
+Any server exposing an OpenAI-compatible `/v1/chat/completions` endpoint:
 
-```json
-{
-  "bot_phone_number": "+1234567890",
-  "lmstudio_api_url": "http://localhost:1234/v1/chat/completions",
-  "docker_container": "signal-cli",
-  "require_mention_in_direct_messages": true,
-  "model": "local-model",
-  "bot_nickname": "@bot",
-  "log_level": "INFO",
-  "test_phone_number": "+1234567890"
-}
-```
+| Server | Base URL | API Key | Notes |
+|--------|----------|---------|-------|
+| LM Studio | `http://localhost:1234/v1` | `lm-studio` | Enable "Serve on Local Network" for Docker mode |
+| Ollama | `http://localhost:11434/v1` | `ollama` | Pull a model with tool support |
+| vLLM | `http://localhost:8000/v1` | `token-abc123` | |
+| llama.cpp | `http://localhost:8080/v1` | `sk-no-key-required` | |
 
-## Running the Bot
+Pick a model with tool/function-calling support for best results (e.g. Qwen 2.5, Llama 3.1, Mistral).
 
-Start the bot with:
+## Tech Stack
 
-```bash
-python signal_bot.py
-```
-
-The bot will:
-1. Connect to the signal-cli Docker container
-2. List all groups it's a member of
-3. Start listening for messages
-4. Respond to messages that mention its nickname
-
-To stop the bot, press Ctrl+C.
-
-## Using the Bot
-
-### Direct Messages
-
-1. Start a direct conversation with the bot's phone number in Signal
-2. Send a message that includes the bot's nickname your configured earlier (e.g., "@bot tell me a joke")
-3. The bot will respond with an AI-generated answer
-
-### Group Chats
-
-1. Add the bot to a Signal group
-2. Mention the bot in your message (e.g., "@bot tell me a joke about Donald Duck?")
-3. The bot will respond in the group chat with an AI-generated answer
-
-## Customizing the LLM
-
-The bot connects to LMStudio's API, allowing you to use any model you have loaded:
-
-1. Open LMStudio and load your preferred model
-2. Ensure the API server is running (click "Start Server" in LMStudio)
-3. Update the bot's configuration to use your model name:
-   ```bash
-   python signal_bot.py --model "llama-3.2-3b-instruct"
-   ```
-
-## Troubleshooting
-
-### Bot Not Responding
-
-- Check that signal-cli is running: `docker ps | grep signal-cli`
-- Verify the bot's phone number is correctly registered
-- Ensure LMStudio is running with the API server enabled
-- Check the logs for errors: `tail -f signal_bot.log`
-
-### Group Messages Not Working
-
-- Make sure the bot is properly added to the group
-- Verify you're mentioning the bot with the correct nickname
-- Check if the group has any restrictions on who can send messages
-
-### Connection Issues with LMStudio
-
-- Verify LMStudio is running and the API server is started
-- Check the API URL in the configuration file
-- Ensure the model name matches exactly what's in LMStudio
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- [Strands Agents](https://strandsagents.com/) — agent framework with multi-agent patterns
+- [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api) — Signal messenger REST API
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — local speech-to-text
+- [DuckDuckGo Search](https://github.com/deedy5/ddgs) — web search without API keys
+- [croniter](https://github.com/kiorky/croniter) — cron expression parsing for the scheduler
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [signal-cli](https://github.com/AsamK/signal-cli) for providing the command-line interface to Signal
-- [LMStudio](https://lmstudio.ai/) for the local LLM hosting
-- All contributors and users of this bot
+MIT

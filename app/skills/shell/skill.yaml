@@ -1,0 +1,7 @@
+name: shell
+description: Run guarded shell commands on the local machine.
+version: "1.0.0"
+enabled: true
+
+tools:
+  - "shell_cmd:run_shell_command"

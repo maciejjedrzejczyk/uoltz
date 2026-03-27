@@ -1,0 +1,11 @@
+name: notes
+description: Local note-taking backed by JSON files. Save, list, and read notes.
+version: "1.0.0"
+enabled: true
+command: /notes
+command_usage: "/notes  —  list all notes"
+
+tools:
+  - "notes:save_note"
+  - "notes:list_notes"
+  - "notes:read_note"

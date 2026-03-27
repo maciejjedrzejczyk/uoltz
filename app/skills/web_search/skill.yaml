@@ -1,0 +1,10 @@
+name: web_search
+description: Search the web using DuckDuckGo. No API key required.
+version: "1.0.0"
+enabled: true
+command: /search
+command_arg: query
+command_usage: "/search <query>"
+
+tools:
+  - "search:web_search"

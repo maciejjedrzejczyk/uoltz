@@ -1,0 +1,8 @@
+strands-agents[openai]
+strands-agents-tools
+httpx
+python-dotenv
+pyyaml
+ddgs
+faster-whisper
+croniter

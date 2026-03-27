@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────
+# Example scheduled jobs. Copy and modify to create your own.
+# Cron format: minute hour day-of-month month day-of-week
+#
+# Examples:
+#   "0 7 * * *"      → every day at 7:00 AM
+#   "0 7 * * 1-5"    → weekdays at 7:00 AM
+#   "0 9,18 * * *"   → twice daily at 9 AM and 6 PM
+#   "*/30 * * * *"   → every 30 minutes
+#   "0 8 * * 1"      → every Monday at 8:00 AM
+# ─────────────────────────────────────────────────────────────────────
+
+name: Weekly News Digest
+schedule: "0 8 * * 1"
+recipient: "+1234567890"
+prompt: >
+  Research the top 5 most important world news stories from the past week.
+  Give me a brief summary of each with links.
+enabled: false

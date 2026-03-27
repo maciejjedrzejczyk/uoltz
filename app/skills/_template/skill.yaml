@@ -1,0 +1,17 @@
+# Skill manifest — copy this folder to create a new skill.
+#
+# Structure:
+#   skills/my_skill/
+#   ├── skill.yaml        ← this file
+#   └── my_module.py      ← contains @tool-decorated functions
+#
+# The 'tools' list maps to module:function references that will be
+# auto-discovered and registered with the agent.
+
+name: my_skill
+description: Short description of what this skill does.
+version: "0.1.0"
+enabled: true
+
+tools:
+  - "my_module:my_tool_function"

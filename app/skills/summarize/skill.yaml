@@ -1,0 +1,12 @@
+name: summarize
+description: >
+  Summarize text or web pages. Give it a URL and it fetches the content,
+  or give it raw text, and it produces a concise summary.
+version: "1.0.0"
+enabled: true
+command: /summarize
+command_arg: content
+command_usage: "/summarize <url or text>"
+
+tools:
+  - "summarize:summarize_content"
