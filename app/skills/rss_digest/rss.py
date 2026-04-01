@@ -26,84 +26,8 @@ MONITORED_FEEDS = {
     "feed/235": "Containers",
     "feed/236": "Jeff Barr – AWS News Blog",
     "feed/237": "The Internet of Things on AWS – Official Blog",
-    "feed/487": "*Walter Bloomberg / @DeItaone",  # finance
-    "feed/400": "404 Media",  # IT
-    "feed/412": "A Wealth of Common Sense",  # finance
-    "feed/448": "AI Jason",  # AI
-    "feed/484": "AI w zasięgu biznesu",  # AI
-    "feed/480": "Ahead of AI",  # AI
-    "feed/382": "All Things Distributed",  # aws
-    "feed/476": "Andrej Karpathy / @karpathy",  # AI
-    "feed/26": "Blogi bossa.pl",  # finance
-    "feed/483": "Conversations with Tyler",  # AI
-    "feed/372": "David Heinemeier Hansson",  # IT
-    "feed/460": "Derek Thompson",  # US:Blogi
-    "feed/427": "DoublePulsar - Medium",  # Security
-    "feed/31": "Doxa - Przemysław A. Słomski",  # finance
-    "feed/32": "DwaGrosze",  # PL:Blogi
-    "feed/33": "Dziennik Śledczy",  # PL:Blogi
-    "feed/469": "Ed Zitron's Where's Your Ed At",  # finance
-    "feed/486": "Embrace The Red",  # Security
-    "feed/475": "Epoch AI | Blog",  # AI
-    "feed/479": "Eric Balchunas / @EricBalchunas",  # finance
-    "feed/463": "Everyday Astronaut",  # space
-    "feed/482": "Fran Schwartzkopff / @FranSchwar",  # finance
-    "feed/466": "GrapheneOS",  # Security
-    "feed/405": "Hacker News",  # IT
-    "feed/38": "ITwiz",  # IT
-    "feed/485": "Import AI",  # AI
-    "feed/7": "IndependentTrader.pl",  # finance
-    "feed/420": "InfoQ",  # IT
-    "feed/39": "Informatyk Zakładowy",  # IT
-    "feed/74": "Jeff Geerling's Blog",  # IT
-    "feed/481": "Ken Klippenstein",  # US:Blogi
-    "feed/408": "Last Week in AWS",  # US:Blogi
-    "feed/488": "Lobsters",  # US:Blogi
-    "feed/44": "Maczeta Ockhama",  # PL:Blogi
-    "feed/426": "Map Happenings",  # US:Blogi
-    "feed/411": "Marcus on AI",  # US:Blogi
-    "feed/491": "Marginal Revolution",  # US:Blogi
-    "feed/458": "NASA",  # space
-    "feed/464": "NASASpaceflight",  # space
-    "feed/48": "Niebezpiecznik.pl",  # IT
-    "feed/341": "Noahpinion",  # US:Blogi
-    "feed/455": "Ollama models",  # AI
-    "feed/468": "Paul Kedrosky",  # finance
-    "feed/462": "Philip Sloss",  # space
-    "feed/404": "PlanB",  # finance
-    "feed/54": "Podtwórca",  # PL:Blogi
-    "feed/55": "Pokolenie Ikea",  # PL:Blogi
-    "feed/10": "Przegląd Finansowy",  # finance
-    "feed/57": "Przekraczając Granice",  # PL:Blogi
-    "feed/478": "RenMac: Renaissance Macro Research",  # finance
-    "feed/402": "Replicate's blog",  # US:Blogi
-    "feed/424": "Rynek kapitałowy w pigułce",  # finance
-    "feed/428": "SITUATIONAL AWARENESS",  # AI
-    "feed/79": "Schneier on Security",  # Security
-    "feed/465": "Scott Manley",  # space
-    "feed/445": "Simon Willison's Weblog",  # AI
-    "feed/454": "Simon Willison's Newsletter",  # AI
-    "feed/459": "SpaceNews",  # space
-    "feed/59": "Stanisław Michalkiewicz",  # PL:Blogi
-    "feed/401": "Stockbroker.pl",  # PL:Blogi
-    "feed/489": "Techmeme",  # US:Blogi
-    "feed/61": "Terroryzm Geopolityka Izrael Iran Islam CIA FSB",  # PL:Blogi
-    "feed/413": "The Eclectic Light Company",  # US:Blogi
-    "feed/473": "The Power Law",  # AI
-    "feed/474": "The Pragmatic Engineer",  # AI
-    "feed/425": "War on the Rocks",  # US:Blogi
-    "feed/391": "Warsaw Now!",  # PL:Blogi
-    "feed/396": "Web3 is Going Just Great",  # US:Blogi
-    "feed/470": "Works in Progress RSS Feed",  # US:Blogi
-    "feed/492": "YTS RSS",  # Uncategorized
-    "feed/339": "Zapiski czynione po drodze",  # PL:Blogi
-    "feed/83": "Zaufana Trzecia Strona",  # Security
-    "feed/67": "mikrowyprawy z Warszawy",  # PL:Blogi
-    "feed/73": "wolność równość ludobójstwo",  # PL:Blogi
-    "feed/471": "antirez",  # AI
+ 
 }
-
-# ── All available feeds (uncomment to add) ───────────────────────────
 
 
 MAX_ARTICLES_PER_RUN = 5
