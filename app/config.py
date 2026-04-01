@@ -27,6 +27,7 @@ class SignalConfig:
     api_url: str = field(default_factory=lambda: os.getenv("SIGNAL_API_URL", "http://localhost:9922"))
     number: str = field(default_factory=lambda: os.getenv("SIGNAL_NUMBER", ""))
     allowed_numbers: frozenset[str] = field(default_factory=lambda: _parse_allowed())
+    group_prefix: str = field(default_factory=lambda: os.getenv("BOT_GROUP_PREFIX", "@bot"))
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,14 @@ class WhisperConfig:
     model_size: str = field(default_factory=lambda: os.getenv("WHISPER_MODEL", "base"))
     device: str = field(default_factory=lambda: os.getenv("WHISPER_DEVICE", "cpu"))
     compute_type: str = field(default_factory=lambda: os.getenv("WHISPER_COMPUTE_TYPE", "int8"))
+
+
+@dataclass(frozen=True)
+class FreshRSSConfig:
+    """FreshRSS configuration."""
+    url: str = field(default_factory=lambda: os.getenv("FRESHRSS_URL", ""))
+    user: str = field(default_factory=lambda: os.getenv("FRESHRSS_USER", ""))
+    api_password: str = field(default_factory=lambda: os.getenv("FRESHRSS_API_PASSWORD", ""))
 
 
 def _parse_allowed() -> frozenset[str]:
@@ -48,6 +57,7 @@ def _parse_allowed() -> frozenset[str]:
 llm = LLMConfig()
 signal = SignalConfig()
 whisper = WhisperConfig()
+freshrss = FreshRSSConfig()
 
 
 def make_model():

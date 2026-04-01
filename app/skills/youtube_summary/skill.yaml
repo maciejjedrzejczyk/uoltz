@@ -1,0 +1,15 @@
+name: youtube_summary
+description: >
+  Summarize YouTube videos. Extracts captions or transcribes audio with
+  Whisper, then produces a detailed summary. Handles long videos by
+  chunking the transcript. Use plain text for outputs (no markdown) and
+  avoid using markdown-like symbols (asterisks for bold, hashes for
+  sections etc.).
+version: "1.0.0"
+enabled: true
+command: /yt
+command_arg: url
+command_usage: "/yt <youtube-url>"
+
+tools:
+  - "youtube:summarize_youtube"

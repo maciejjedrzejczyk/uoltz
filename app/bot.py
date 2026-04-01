@@ -1,9 +1,17 @@
-"""Main bot loop: polls Signal for messages and routes them to the agent."""
+"""Main bot loop: polls Signal for messages and routes them to the agent.
 
+Uses a message queue so the agent processes one request at a time,
+avoiding thread-safety issues with shared conversation state.
+Ack messages fire instantly; the agent work is serialized.
+"""
+
+import queue
 import sys
 import time
 import logging
+import logging.handlers
 import threading
+from pathlib import Path
 
 import config
 from runtime import state
@@ -17,15 +25,27 @@ from skills import SkillRegistry
 from transcribe import download_and_transcribe, AUDIO_CONTENT_TYPES
 from scheduler import start_scheduler
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+_LOG_DIR = Path("data/logs")
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+_LOG_FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+logging.basicConfig(level=logging.INFO, format=_LOG_FMT)
+
+# File handler — all modules (including skills) inherit this automatically
+_file_handler = logging.handlers.RotatingFileHandler(
+    _LOG_DIR / "bot.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8",
 )
+_file_handler.setFormatter(logging.Formatter(_LOG_FMT))
+logging.getLogger().addHandler(_file_handler)
+
 logger = logging.getLogger("signal-bot")
 
 POLL_INTERVAL = 2
 ACK_MESSAGE = "⏳ Got it, working on it..."
 
+# Global message queue — the polling loop enqueues, the worker dequeues
+_work_queue: queue.Queue = queue.Queue()
 
 # ── Direct skill invocation (bypasses LLM tool selection) ────────────
 
@@ -39,31 +59,16 @@ def handle_direct_skill(cmd: str, args: str, signal: SignalClient, sender: str) 
 
     dc = registry.commands[command]
 
-    # If the skill expects an argument but none given, show usage
     if dc.arg_name and not args.strip():
         usage = dc.usage or f"{command} <input>"
         signal.send(sender, f"Usage: {usage}")
         return True
 
+    # Ack instantly, queue the work
     signal.send(sender, ACK_MESSAGE)
-
-    def _run():
-        try:
-            if dc.arg_name:
-                result = dc.func(**{dc.arg_name: args.strip()})
-            else:
-                result = dc.func()
-            reply = str(result) if result else "(no output)"
-        except Exception as e:
-            logger.exception("Direct skill %s failed", command)
-            reply = f"Error: {e}"
-
-        signal.send(sender, reply)
-        logger.info("Direct skill %s replied to %s (%d chars)", command, sender, len(reply))
-
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
+    _work_queue.put(("direct_skill", signal, sender, command, dc, args.strip()))
     return True
+
 
 # ── Slash command handler ────────────────────────────────────────────
 
@@ -122,8 +127,6 @@ def handle_slash_command(cmd: str, signal: SignalClient, sender: str) -> bool:
         if arg1 == "load" and arg2:
             query = arg2.strip()
             models = list_available_models()
-
-            # Try as a number index first
             try:
                 idx = int(query)
                 if 1 <= idx <= len(models):
@@ -132,7 +135,6 @@ def handle_slash_command(cmd: str, signal: SignalClient, sender: str) -> bool:
                     signal.send(sender, f"Index {idx} out of range. Use /model list to see 1-{len(models)}.")
                     return True
             except ValueError:
-                # Fuzzy match: find models containing the query (case-insensitive)
                 query_lower = query.lower()
                 matches = [m for m in models if query_lower in m.lower()]
                 if len(matches) == 1:
@@ -265,7 +267,10 @@ def _format_debug_info(result) -> str:
 
 
 def extract_messages(raw: list[dict]) -> list[dict]:
-    """Extract messages from Signal API response."""
+    """Extract messages from Signal API response.
+
+    Returns dicts with: sender, text, attachments, group_id (None for 1:1).
+    """
     messages = []
     for envelope_wrapper in raw:
         envelope = envelope_wrapper.get("envelope", {})
@@ -273,31 +278,72 @@ def extract_messages(raw: list[dict]) -> list[dict]:
         data = envelope.get("dataMessage", {})
         text = data.get("message", "") or ""
         attachments = data.get("attachments", []) or []
+
+        # Group messages have groupInfo with groupId
+        group_info = data.get("groupInfo", {})
+        group_id = group_info.get("groupId") if group_info else None
+
         if sender and (text or attachments):
-            messages.append({"sender": sender, "text": text, "attachments": attachments})
+            messages.append({
+                "sender": sender,
+                "text": text,
+                "attachments": attachments,
+                "group_id": group_id,
+            })
     return messages
 
 
-def handle_message(signal: SignalClient, sender: str, text: str):
-    """Process a single message in a background thread."""
-    signal.send(sender, ACK_MESSAGE)
-    try:
-        agent = get_agent()
-        result = agent(text)
-        reply = str(result)
-    except Exception as e:
-        logger.exception("Agent error for %s", sender)
-        reply = f"Sorry, I hit an error: {e}"
-        signal.send(sender, reply)
-        return
+# ── Queue worker ─────────────────────────────────────────────────────
 
-    signal.send(sender, reply)
-    logger.info("Replied to %s (%d chars)", sender, len(reply))
+def _worker(signal: SignalClient):
+    """Single worker thread that processes queued messages sequentially."""
+    while True:
+        try:
+            item = _work_queue.get()
+            if item is None:
+                break
 
-    # Send debug info as a follow-up message if enabled
-    if state.debug:
-        debug_msg = _format_debug_info(result)
-        signal.send(sender, debug_msg)
+            msg_type = item[0]
+
+            if msg_type == "agent":
+                _, _signal, sender, text = item
+                try:
+                    agent = get_agent()
+                    result = agent(text)
+                    reply = str(result)
+                except Exception as e:
+                    logger.exception("Agent error for %s", sender)
+                    reply = f"Sorry, I hit an error: {e}"
+                    _signal.send(sender, reply)
+                    _work_queue.task_done()
+                    continue
+
+                _signal.send(sender, reply)
+                logger.info("Replied to %s (%d chars)", sender, len(reply))
+
+                if state.debug:
+                    debug_msg = _format_debug_info(result)
+                    _signal.send(sender, debug_msg)
+
+            elif msg_type == "direct_skill":
+                _, _signal, sender, command, dc, args = item
+                try:
+                    if dc.arg_name:
+                        result = dc.func(**{dc.arg_name: args})
+                    else:
+                        result = dc.func()
+                    reply = str(result) if result else "(no output)"
+                except Exception as e:
+                    logger.exception("Direct skill %s failed", command)
+                    reply = f"Error: {e}"
+
+                _signal.send(sender, reply)
+                logger.info("Direct skill %s replied to %s (%d chars)", command, sender, len(reply))
+
+            _work_queue.task_done()
+
+        except Exception:
+            logger.exception("Worker error")
 
 # ── Main loop ────────────────────────────────────────────────────────
 
@@ -330,7 +376,11 @@ def main():
         len(registry.skills), len(registry.tools), POLL_INTERVAL,
     )
 
-    # Start the proactive scheduler (runs in background thread)
+    # Start the sequential worker thread
+    worker_thread = threading.Thread(target=_worker, args=(signal,), daemon=True, name="worker")
+    worker_thread.start()
+
+    # Start the proactive scheduler
     start_scheduler(get_agent(), signal)
 
     while True:
@@ -340,10 +390,29 @@ def main():
                 sender = msg["sender"]
                 text = msg["text"]
                 attachments = msg["attachments"]
+                group_id = msg["group_id"]
+
+                # In groups, reply to the group; in 1:1, reply to the sender
+                reply_to = group_id if group_id else sender
 
                 if allowed and sender not in allowed:
                     logger.warning("Ignoring message from unauthorized number: %s", sender)
                     continue
+
+                # Group message filtering: only respond to prefix or / commands
+                if group_id:
+                    prefix = config.signal.group_prefix.lower()
+                    text_lower = text.strip().lower()
+                    if text_lower.startswith(prefix):
+                        # Strip the prefix and process the rest
+                        text = text.strip()[len(prefix):].strip()
+                        logger.info("Group %s, from %s (prefix matched): %s", group_id, sender, text[:80])
+                    elif text.strip().startswith("/"):
+                        # Slash commands work in groups without prefix
+                        logger.info("Group %s, from %s (command): %s", group_id, sender, text[:80])
+                    else:
+                        # Ignore non-prefixed messages in groups
+                        continue
 
                 # Transcribe voice messages
                 audio_atts = [a for a in attachments if a.get("contentType", "") in AUDIO_CONTENT_TYPES]
@@ -351,38 +420,39 @@ def main():
                     att = audio_atts[0]
                     att_id = att.get("id", att.get("filename", ""))
                     logger.info("Voice message from %s, attachment: %s", sender, att_id)
-                    signal.send(sender, "🎤 Transcribing voice message...")
+                    signal.send(reply_to, "🎤 Transcribing voice message...")
                     try:
                         text = download_and_transcribe(cfg_signal.api_url, att_id)
-                        signal.send(sender, f'📝 Heard: "{text}"')
+                        signal.send(reply_to, f'📝 Heard: "{text}"')
                     except Exception as e:
                         logger.exception("Transcription failed")
-                        signal.send(sender, f"Failed to transcribe voice message: {e}")
+                        signal.send(reply_to, f"Failed to transcribe voice message: {e}")
                         continue
 
                 if not text:
                     continue
 
-                logger.info("Message from %s: %s", sender, text[:80])
+                if not group_id:
+                    logger.info("Message from %s: %s", sender, text[:80])
 
                 if text.strip().startswith("/"):
-                    # Try direct skill invocation first (e.g. /summarize, /research)
+                    # Direct skill invocations (e.g. /summarize, /research)
                     parts = text.strip().split(None, 1)
                     skill_cmd = parts[0]
                     skill_args = parts[1] if len(parts) > 1 else ""
-                    if handle_direct_skill(skill_cmd, skill_args, signal, sender):
+                    if handle_direct_skill(skill_cmd, skill_args, signal, reply_to):
                         continue
 
-                    # Then try bot control commands (e.g. /model, /help)
-                    if handle_slash_command(text, signal, sender):
+                    # Bot control commands (e.g. /model, /help) — instant, no queue
+                    if handle_slash_command(text, signal, reply_to):
                         continue
 
-                t = threading.Thread(
-                    target=handle_message,
-                    args=(signal, sender, text),
-                    daemon=True,
-                )
-                t.start()
+                # Agent messages — ack instantly, queue for sequential processing
+                signal.send(reply_to, ACK_MESSAGE)
+                _work_queue.put(("agent", signal, reply_to, text))
+                pending = _work_queue.qsize()
+                if pending > 1:
+                    signal.send(reply_to, f"📋 Queued (position {pending})")
 
         except KeyboardInterrupt:
             logger.info("Shutting down...")

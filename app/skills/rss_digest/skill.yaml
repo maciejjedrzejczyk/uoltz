@@ -1,0 +1,12 @@
+name: rss_digest
+description: >
+  Fetches unread articles from FreshRSS, summarizes them, and sends
+  digests via Signal. Can be triggered manually or via the scheduler.
+version: "1.0.0"
+enabled: true
+command: /rss
+command_arg: feed_filter
+command_usage: "/rss [feed name filter]  —  summarize unread RSS articles"
+
+tools:
+  - "rss:rss_digest"

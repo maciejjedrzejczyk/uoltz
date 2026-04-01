@@ -2,7 +2,8 @@ name: brainstorm
 description: >
   Multi-agent brainstorming skill. Give it a topic and it orchestrates
   parallel ideation agents (visionary, critic, researcher, pragmatist)
-  through a Graph pipeline, then synthesizes and saves a structured report.
+  through a Graph pipeline, then synthesizes and saves a structured report. Use plain text for outputs (no markdown) and avoid using markdown-like symbols (asterisks for bold, hashes for sections etc.).
+version: "1.0.0"
 version: "1.0.0"
 enabled: true
 command: /brainstorm

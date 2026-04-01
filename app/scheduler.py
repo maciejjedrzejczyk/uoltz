@@ -35,6 +35,9 @@ class ScheduledJob:
     recipient: str
     prompt: str
     enabled: bool = True
+    # Optional: call a /command directly instead of going through the LLM
+    command: str | None = None
+    command_args: str | None = None
     last_run: datetime | None = field(default=None, repr=False)
 
 
@@ -58,8 +61,10 @@ def _load_jobs() -> list[ScheduledJob]:
                     name=data["name"],
                     schedule=data["schedule"],
                     recipient=data["recipient"],
-                    prompt=data["prompt"],
+                    prompt=data.get("prompt", ""),
                     enabled=data.get("enabled", True),
+                    command=data.get("command"),
+                    command_args=data.get("command_args", ""),
                 )
                 if job.enabled:
                     jobs.append(job)
@@ -86,11 +91,35 @@ def _is_due(job: ScheduledJob, now: datetime) -> bool:
 
 
 def _run_job(job: ScheduledJob, agent, signal_client):
-    """Execute a single scheduled job."""
+    """Execute a single scheduled job.
+
+    If the job has a 'command' field, it calls the registered skill directly.
+    Otherwise, it sends the prompt through the LLM agent.
+    """
     logger.info("Running scheduled job: %s → %s", job.name, job.recipient)
+
     try:
-        result = agent(job.prompt)
-        reply = str(result)
+        if job.command:
+            # Direct tool invocation — bypass the LLM entirely
+            from agent import get_registry
+            registry = get_registry()
+            cmd = job.command.lower() if job.command.startswith("/") else f"/{job.command.lower()}"
+
+            if cmd not in registry.commands:
+                reply = f"[Scheduled: {job.name}] Command '{cmd}' not found in registry."
+            else:
+                dc = registry.commands[cmd]
+                if dc.arg_name and job.command_args:
+                    result = dc.func(**{dc.arg_name: job.command_args})
+                elif dc.arg_name:
+                    result = dc.func(**{dc.arg_name: ""})
+                else:
+                    result = dc.func()
+                reply = str(result) if result else "(no output)"
+        else:
+            # LLM agent invocation
+            result = agent(job.prompt)
+            reply = str(result)
     except Exception as e:
         logger.exception("Scheduled job '%s' failed", job.name)
         reply = f"[Scheduled: {job.name}] Error: {e}"

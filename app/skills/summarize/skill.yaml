@@ -1,7 +1,7 @@
 name: summarize
 description: >
   Summarize text or web pages. Give it a URL and it fetches the content,
-  or give it raw text, and it produces a concise summary.
+  or give it raw text, and it produces a concise summary. Use plain text for outputs (no markdown) and avoid using markdown-like symbols (asterisks for bold, hashes for sections etc.).
 version: "1.0.0"
 enabled: true
 command: /summarize

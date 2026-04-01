@@ -2,7 +2,7 @@ name: research
 description: >
   Real-time research skill. Searches the web for current information on any
   topic (weather, news, stocks, events, etc.), verifies dates, and produces
-  a concise report with source links.
+  a concise report with source links. Use plain text for outputs (no markdown) and avoid using markdown-like symbols (asterisks for bold, hashes for sections etc.).
 version: "1.0.0"
 enabled: true
 command: /research
