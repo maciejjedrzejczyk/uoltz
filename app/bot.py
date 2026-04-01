@@ -240,6 +240,38 @@ def handle_slash_command(cmd: str, signal: SignalClient, sender: str) -> bool:
 
 # ── Message handling ─────────────────────────────────────────────────
 
+def _format_skills_used(result, registry) -> str | None:
+    """Extract which skills were used from an AgentResult."""
+    try:
+        summary = result.metrics.get_summary()
+        tool_usage = summary.get("tool_usage", {})
+        if not tool_usage:
+            return None
+
+        # Build reverse map: tool_function_name → skill_name
+        tool_to_skill = {}
+        for skill in registry.skills:
+            for ref in skill.tools:
+                func_name = ref.split(":")[-1]
+                tool_to_skill[func_name] = skill.name
+
+        skills_used = {}
+        for tool_name in tool_usage:
+            skill_name = tool_to_skill.get(tool_name, None)
+            if skill_name:
+                skills_used.setdefault(skill_name, []).append(tool_name)
+
+        if not skills_used:
+            return None
+
+        parts = []
+        for skill_name, tools in skills_used.items():
+            parts.append(f"{skill_name} ({', '.join(tools)})")
+        return "🧩 Skills used: " + " · ".join(parts)
+    except Exception:
+        return None
+
+
 def _format_debug_info(result) -> str:
     """Extract debug metrics from an AgentResult."""
     try:
@@ -317,6 +349,11 @@ def _worker(signal: SignalClient):
                     _signal.send(sender, reply)
                     _work_queue.task_done()
                     continue
+
+                # Show which skills were invoked
+                skills_msg = _format_skills_used(result, get_registry())
+                if skills_msg:
+                    _signal.send(sender, skills_msg)
 
                 _signal.send(sender, reply)
                 logger.info("Replied to %s (%d chars)", sender, len(reply))

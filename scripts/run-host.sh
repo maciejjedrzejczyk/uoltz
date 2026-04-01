@@ -9,8 +9,9 @@
 #   4. Launches the bot
 #
 # Usage:
-#   ./scripts/run-host.sh          # start the bot on host
-#   ./scripts/run-host.sh --stop   # just stop and switch back to docker mode
+#   ./scripts/run-host.sh              # start the bot interactively
+#   ./scripts/run-host.sh --background # start the bot in the background
+#   ./scripts/run-host.sh --stop       # stop background bot, switch to docker mode
 # ─────────────────────────────────────────────────────────────────────
 set -e
 cd "$(dirname "$0")/.."
@@ -18,6 +19,8 @@ cd "$(dirname "$0")/.."
 source scripts/_prereqs.sh
 
 ENV_FILE=".env"
+PID_FILE="data/.bot.pid"
+LOG_FILE="data/bot.log"
 
 # ── Helper: switch .env between modes ────────────────────────────────
 
@@ -51,9 +54,49 @@ switch_to_docker() {
   rm -f "${ENV_FILE}.bak"
 }
 
+# ── Helper: stop any running background bot ──────────────────────────
+
+stop_host_bot() {
+  # Kill via PID file
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid=$(cat "$PID_FILE")
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "Stopping background bot (PID $pid)..."
+      kill "$pid" 2>/dev/null || true
+      # Wait up to 5 seconds for graceful shutdown
+      for i in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.5
+      done
+      # Force kill if still running
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "  Force killing PID $pid..."
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$PID_FILE"
+  fi
+
+  # Also kill any orphaned bot.py processes (safety net)
+  local pids
+  pids=$(pgrep -f "python.*app/bot\.py" 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    echo "Killing orphaned bot processes: $pids"
+    echo "$pids" | xargs kill 2>/dev/null || true
+    sleep 1
+    # Force kill survivors
+    pids=$(pgrep -f "python.*app/bot\.py" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+      echo "$pids" | xargs kill -9 2>/dev/null || true
+    fi
+  fi
+}
+
 # ── Stop mode ────────────────────────────────────────────────────────
 
 if [ "$1" = "--stop" ]; then
+  stop_host_bot
   echo "Switching back to Docker mode..."
   switch_to_docker
   echo "You can now run ./scripts/up.sh to start in Docker."
@@ -64,10 +107,11 @@ fi
 
 check_host_prereqs
 
-# ── Step 1: Stop Docker bot (keep signal-api) ────────────────────────
+# ── Step 1: Stop any existing bot (Docker + background) ──────────────
 
 echo ""
-echo "Step 1: Stopping Docker bot container..."
+echo "Step 1: Stopping any existing bot..."
+stop_host_bot
 docker compose stop bot 2>/dev/null || true
 docker compose rm -f bot 2>/dev/null || true
 
@@ -110,8 +154,18 @@ uv pip install -r app/requirements.txt --quiet
 # ── Step 4: Launch the bot ───────────────────────────────────────────
 
 echo ""
-echo "Step 4: Starting bot on host..."
-echo "  Press Ctrl+C to stop."
-echo ""
 
-PYTHONPATH=app exec "$VENV_DIR/bin/python" app/bot.py
+if [ "$1" = "--background" ] || [ "$1" = "--bg" ]; then
+  mkdir -p data
+  echo "Step 4: Starting bot in background..."
+  PYTHONPATH=app nohup "$VENV_DIR/bin/python" app/bot.py >> "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  echo "  Bot started (PID $(cat "$PID_FILE"))"
+  echo "  Logs: tail -f $LOG_FILE"
+  echo "  Stop: ./scripts/run-host.sh --stop"
+else
+  echo "Step 4: Starting bot on host..."
+  echo "  Press Ctrl+C to stop."
+  echo ""
+  PYTHONPATH=app exec "$VENV_DIR/bin/python" app/bot.py
+fi

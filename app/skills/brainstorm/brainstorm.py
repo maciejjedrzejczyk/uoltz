@@ -3,17 +3,22 @@
 Pipeline:
   1. Decomposer — breaks the topic into angles (with date context + prior brainstorms)
   2. Domain classifier selects specialist agents dynamically
-  3. Parallel ideation agents (5 specialists + media_scout)
-  4. Fact-checker cross-references all outputs
+  3. Parallel ideation agents (5 specialists + media_scout), each wrapped in
+     a CondensingAgent that compresses output before graph handoff
+  4. Fact-checker cross-references all condensed outputs
   5. Synthesizer — merges into a confidence-scored structured report
   6. Saves results to data/brainstorms/<slug>/
 
 Graph topology (default):
-  decomposer ──┬── visionary    ──┐
-               ├── critic       ──┤
-               ├── researcher   ──├── fact_checker ──► synthesizer
-               ├── pragmatist   ──┤
-               └── media_scout  ──┘
+  decomposer ──┬── specialist*   ──┐
+               ├── critic        ──┤
+               ├── researcher    ──├── fact_checker ──► synthesizer
+               ├── pragmatist    ──┤
+               └── media_scout   ──┘
+
+Each parallel agent internally processes full data, then condenses its
+output to ~400 words before passing downstream. This prevents context
+overflow at merge points without sacrificing research quality.
 """
 
 import os
@@ -26,6 +31,7 @@ from strands import Agent, tool
 from strands.multiagent import GraphBuilder
 from skills.web_search.search import web_search
 from skills.brainstorm._youtube_search import youtube_search
+from skills.brainstorm._condenser import CondensingAgent
 import config
 
 logger = logging.getLogger(__name__)
@@ -50,7 +56,6 @@ def _find_prior_brainstorms(topic: str, max_results: int = 3) -> str:
     scored = []
     for report_path in BRAINSTORMS_DIR.glob("*/REPORT.md"):
         folder_name = report_path.parent.name
-        # Strip timestamp prefix (YYYYMMDD-HHMMSS_)
         slug_part = re.sub(r"^\d{8}-\d{6}_", "", folder_name)
         slug_words = set(slug_part.replace("-", " ").split())
         overlap = len(topic_words & slug_words)
@@ -65,7 +70,6 @@ def _find_prior_brainstorms(topic: str, max_results: int = 3) -> str:
     for _, folder_name, report_path in scored[:max_results]:
         try:
             text = report_path.read_text()
-            # Take just the first 500 chars as a summary
             preview = text[:500].strip()
             sections.append(f"[{folder_name}]\n{preview}\n...\n")
         except Exception:
@@ -155,7 +159,7 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
         ),
     )
 
-    # --- Domain-specific specialist swap (#8) ---
+    # --- Domain-specific specialist swap ---
     if domain == "tech":
         specialist_name = "technical_architect"
         specialist_prompt = (
@@ -190,13 +194,13 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
             "Dream big. Structure your output with clear headings."
         )
 
-    specialist = Agent(
+    specialist = CondensingAgent(Agent(
         name=specialist_name,
         model=model,
         system_prompt=specialist_prompt,
-    )
+    ))
 
-    critic = Agent(
+    critic = CondensingAgent(Agent(
         name="critic",
         model=model,
         system_prompt=(
@@ -206,9 +210,9 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
             "Be constructive but unflinching. "
             "Structure your output with clear headings."
         ),
-    )
+    ))
 
-    researcher = Agent(
+    researcher = CondensingAgent(Agent(
         name="researcher",
         model=model,
         tools=[web_search],
@@ -220,9 +224,9 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
             "Search for multiple aspects of the topic. Cite sources with URLs. "
             "Structure your output with clear headings."
         ),
-    )
+    ))
 
-    pragmatist = Agent(
+    pragmatist = CondensingAgent(Agent(
         name="pragmatist",
         model=model,
         system_prompt=(
@@ -233,9 +237,9 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
             "Structure your output with clear headings."
             + (f"\n\nUser context to tailor advice: {context}" if context else "")
         ),
-    )
+    ))
 
-    media_scout = Agent(
+    media_scout = CondensingAgent(Agent(
         name="media_scout",
         model=model,
         tools=[web_search, youtube_search],
@@ -246,40 +250,42 @@ def _build_brainstorm_graph(topic: str, context: str = "") -> "Graph":
             "1. Use web_search to find relevant YouTube videos on the topic "
             "(search for: '<topic> site:youtube.com')\n"
             "2. Use youtube_search to extract transcripts from the most "
-            "promising video URLs (up to 3 videos)\n"
+            "promising video URLs (up to 2 videos)\n"
             "3. Distill key insights, expert opinions, tutorials, and unique "
             "perspectives found in the video content\n\n"
             "Structure your output with clear headings. Cite video titles and "
             "URLs for each insight."
         ),
-    )
+    ))
 
-    # --- Fact-checker (#2) ---
-    fact_checker = Agent(
+    # --- Fact-checker (also condensed — its output feeds the synthesizer) ---
+    fact_checker = CondensingAgent(Agent(
         name="fact_checker",
         model=model,
         tools=[web_search],
         system_prompt=(
             f"You are a rigorous fact-checker. Today is {today}.\n\n"
-            "You receive outputs from multiple brainstorming agents. Your job:\n"
+            "You receive condensed outputs from multiple brainstorming agents. "
+            "Your job:\n"
             "1. Cross-reference claims between agents — flag contradictions\n"
-            "2. Verify key factual claims using web_search (spot-check 3-5 claims)\n"
+            "2. Verify key factual claims using web_search (spot-check 3-5)\n"
             "3. Mark each major claim as VERIFIED, UNVERIFIED, or DISPUTED\n"
             "4. Note any outdated information\n\n"
-            "Output a structured fact-check report. Be concise — focus on "
-            "claims that matter, not obvious opinions."
+            "Output a structured fact-check report. Focus on claims that "
+            "matter, not obvious opinions."
         ),
-    )
+    ))
 
-    # --- Synthesizer (with confidence scoring #7) ---
+    # --- Synthesizer (receives condensed inputs — no overflow risk) ---
     synthesizer = Agent(
         name="synthesizer",
         model=model,
         system_prompt=(
             f"You are a master synthesizer. Today is {today}.\n\n"
-            f"You receive outputs from specialist agents ({specialist_name}, "
-            "critic, researcher, pragmatist, media_scout) AND a fact-checker "
-            "report that marks claims as VERIFIED/UNVERIFIED/DISPUTED.\n\n"
+            f"You receive condensed outputs from specialist agents "
+            f"({specialist_name}, critic, researcher, pragmatist, media_scout) "
+            "AND a fact-checker report that marks claims as "
+            "VERIFIED/UNVERIFIED/DISPUTED.\n\n"
             "Merge them into a single, well-structured brainstorming report:\n"
             "1. Executive Summary\n"
             "2. Key Ideas (ranked by potential impact, each with a confidence "
