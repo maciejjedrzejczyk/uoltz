@@ -8,8 +8,12 @@ A local-first AI chatbot for [Signal](https://signal.org/) messenger with plugga
 - **Any OpenAI-compatible backend** — LM Studio, Ollama, vLLM, llama.cpp
 - **Pluggable skill system** — drop a folder in `app/skills/`, restart, done
 - **Voice messages** — automatic transcription via local Whisper
-- **Multi-agent brainstorming** — parallel ideation with Strands Agents Graph pattern
+- **Multi-agent brainstorming** — domain-aware parallel ideation with fact-checking, YouTube video analysis, RSS feed context, prior brainstorm awareness, and confidence-scored reports via Strands Agents Graph pattern
 - **Real-time research** — web + news search with AI synthesis
+- **YouTube summarization** — extract transcripts (captions or Whisper) and produce detailed video summaries
+- **URL summarization** — fetch and summarize any web page or article
+- **RSS digest** — FreshRSS integration for curated feed summaries
+- **Self-extending** — generate new skills from natural language descriptions at runtime
 - **Proactive scheduler** — cron-based jobs that send you updates automatically
 - **Signal account management** — register numbers, manage groups, all from chat
 - **Runtime controls** — switch models, toggle formatting, adjust context window, all via slash commands
@@ -41,7 +45,7 @@ The setup scripts check for these automatically and will install what they can:
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/youruser/signal-agent.git
+git clone https://github.com/maciejjedrzejczyk/uoltz
 cd signal-agent
 cp .env.example .env
 # Edit .env — set your Signal number and LLM server details
@@ -114,16 +118,7 @@ All commands respond instantly without hitting the LLM.
 
 ## Built-in Skills
 
-Skills are auto-discovered from `app/skills/`. Each skill is a folder with a `skill.yaml` manifest and Python tool modules.
-
-| Skill | Tools | Description |
-|-------|-------|-------------|
-| `web_search` | `web_search` | DuckDuckGo search, no API key needed |
-| `research` | `research_topic` | Multi-source web + news search with date verification and AI synthesis. Best for factual lookups: weather, stock prices, current events |
-| `brainstorm` | `brainstorm_topic` | Multi-agent parallel ideation using Strands Graph pattern. Decomposes topics through 4 specialist agents (visionary, critic, researcher, pragmatist) then synthesizes a report. Saves results to `data/brainstorms/` |
-| `notes` | `save_note`, `list_notes`, `read_note` | Local JSON-backed note-taking |
-| `shell` | `run_shell_command` | Guarded local shell command execution (dangerous commands blocked) |
-| `signal_admin` | 9 tools | Register/verify numbers, link devices, create/delete groups, send messages to individuals and groups |
+See [SKILLS.md](SKILLS.md) for detailed documentation on each skill, and how to create your own skills.
 
 ## Proactive Scheduler
 
@@ -180,29 +175,6 @@ WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
 ```
 
-## Creating a New Skill
-
-1. Copy the template:
-   ```bash
-   cp -r app/skills/_template app/skills/my_skill
-   ```
-
-2. Edit `app/skills/my_skill/skill.yaml`:
-   ```yaml
-   name: my_skill
-   description: What this skill does.
-   version: "1.0.0"
-   enabled: true
-   tools:
-     - "my_module:my_tool_function"
-   ```
-
-3. Implement your tools in `app/skills/my_skill/my_module.py` using the `@tool` decorator from Strands
-
-4. Restart the bot — skills are auto-discovered from the `app/skills/` directory
-
-Set `enabled: false` in `skill.yaml` to disable a skill without deleting it.
-
 ## Scripts
 
 All scripts include prerequisite checks and will guide you through installing missing tools.
@@ -234,12 +206,16 @@ signal-agent/
 │   └── skills/                 # Auto-discovered skill plugins
 │       ├── registry.py         # Skill discovery engine
 │       ├── _template/          # Starter template for new skills
-│       ├── brainstorm/         # Multi-agent brainstorming (Graph)
+│       ├── brainstorm/         # Multi-agent brainstorming v2 (Graph)
 │       ├── notes/              # Local note-taking
 │       ├── research/           # Real-time web research
+│       ├── rss_digest/         # FreshRSS feed digest
 │       ├── shell/              # Guarded shell commands
 │       ├── signal_admin/       # Signal account management
-│       └── web_search/         # DuckDuckGo search
+│       ├── skill_builder/      # Runtime skill generation
+│       ├── summarize/          # URL/text summarization
+│       ├── web_search/         # DuckDuckGo search
+│       └── youtube_summary/    # YouTube video summarization
 ├── schedules/                  # Cron job definitions (YAML)
 ├── data/                       # Persistent data (gitignored)
 ├── scripts/                    # Build/run/deploy toolkit
