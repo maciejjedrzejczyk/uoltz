@@ -1,0 +1,13 @@
+name: linkedin_post
+description: >
+  Proposes LinkedIn post ideas based on trending topics from RSS feeds,
+  YouTube, and web search. Focuses on software development, cloud engineering,
+  and AI. Returns 3-4 short post proposals with source links.
+version: "1.0.0"
+enabled: true
+command: /linkedin
+command_arg: focus
+command_usage: "/linkedin [optional focus area]  —  propose LinkedIn post ideas"
+
+tools:
+  - "linkedin:propose_linkedin_posts"

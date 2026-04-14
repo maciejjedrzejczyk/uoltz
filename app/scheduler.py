@@ -38,6 +38,8 @@ class ScheduledJob:
     # Optional: call a /command directly instead of going through the LLM
     command: str | None = None
     command_args: str | None = None
+    # Optional: override model for this job (e.g. a smaller/faster model)
+    model: str | None = None
     last_run: datetime | None = field(default=None, repr=False)
 
 
@@ -65,6 +67,7 @@ def _load_jobs() -> list[ScheduledJob]:
                     enabled=data.get("enabled", True),
                     command=data.get("command"),
                     command_args=data.get("command_args", ""),
+                    model=data.get("model"),
                 )
                 if job.enabled:
                     jobs.append(job)
@@ -90,24 +93,34 @@ def _is_due(job: ScheduledJob, now: datetime) -> bool:
     return False
 
 
+MAX_JOB_RETRIES = 3
+JOB_RETRY_DELAY = 15  # seconds between retries
+
+
 def _run_job(job: ScheduledJob, agent, signal_client):
-    """Execute a single scheduled job.
+    """Execute a single scheduled job with retries.
 
     If the job has a 'command' field, it calls the registered skill directly.
     Otherwise, it sends the prompt through the LLM agent.
+    If the job specifies a 'model', a dedicated agent is created for it.
+    Retries up to MAX_JOB_RETRIES times on failure (gives LLM server time to load).
     """
     logger.info("Running scheduled job: %s → %s", job.name, job.recipient)
 
-    try:
-        if job.command:
-            # Direct tool invocation — bypass the LLM entirely
-            from agent import get_registry
-            registry = get_registry()
-            cmd = job.command.lower() if job.command.startswith("/") else f"/{job.command.lower()}"
+    # Warm up: ensure the model is loaded before running the job
+    from agent import ensure_model_loaded
+    ensure_model_loaded(job.model)
 
-            if cmd not in registry.commands:
-                reply = f"[Scheduled: {job.name}] Command '{cmd}' not found in registry."
-            else:
+    for attempt in range(1, MAX_JOB_RETRIES + 1):
+        try:
+            if job.command:
+                from agent import get_registry
+                registry = get_registry()
+                cmd = job.command.lower() if job.command.startswith("/") else f"/{job.command.lower()}"
+
+                if cmd not in registry.commands:
+                    reply = f"[Scheduled: {job.name}] Command '{cmd}' not found in registry."
+                    break
                 dc = registry.commands[cmd]
                 if dc.arg_name and job.command_args:
                     result = dc.func(**{dc.arg_name: job.command_args})
@@ -116,13 +129,40 @@ def _run_job(job: ScheduledJob, agent, signal_client):
                 else:
                     result = dc.func()
                 reply = str(result) if result else "(no output)"
-        else:
-            # LLM agent invocation
-            result = agent(job.prompt)
-            reply = str(result)
-    except Exception as e:
-        logger.exception("Scheduled job '%s' failed", job.name)
-        reply = f"[Scheduled: {job.name}] Error: {e}"
+            else:
+                job_agent = agent
+                if job.model:
+                    from strands import Agent
+                    from strands.models.openai import OpenAIModel
+                    import config
+                    model = OpenAIModel(
+                        client_args={
+                            "base_url": config.llm.base_url,
+                            "api_key": config.llm.api_key,
+                        },
+                        model_id=job.model,
+                        params={
+                            "temperature": config.llm.temperature,
+                            "max_tokens": config.llm.max_tokens,
+                        },
+                    )
+                    job_agent = Agent(model=model, system_prompt="You are a helpful assistant. Use plain text for outputs (no markdown) and avoid using markdown-like symbols (asterisks for bold, hashes for sections etc.).")
+                    logger.info("Job '%s' using model override: %s", job.name, job.model)
+
+                result = job_agent(job.prompt)
+                reply = str(result)
+
+            # Success — break out of retry loop
+            break
+
+        except Exception as e:
+            logger.warning("Scheduled job '%s' attempt %d/%d failed: %s",
+                           job.name, attempt, MAX_JOB_RETRIES, e)
+            if attempt < MAX_JOB_RETRIES:
+                time.sleep(JOB_RETRY_DELAY)
+            else:
+                logger.exception("Scheduled job '%s' failed after %d attempts", job.name, MAX_JOB_RETRIES)
+                reply = f"[Scheduled: {job.name}] Error after {MAX_JOB_RETRIES} attempts: {e}"
 
     signal_client.send(job.recipient, f"📅 {job.name}\n\n{reply}")
     logger.info("Scheduled job '%s' sent to %s (%d chars)", job.name, job.recipient, len(reply))

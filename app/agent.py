@@ -133,6 +133,44 @@ def _lmstudio_api_base() -> str:
     return base
 
 
+def ensure_model_loaded(model_id: str | None = None) -> bool:
+    """Ensure the model is loaded on the LLM server, loading it if necessary.
+
+    Checks /v1/models for the target model. If missing, triggers a load
+    via LM Studio's management API and waits for it to become available.
+
+    Returns True if the model is ready, False on failure.
+    """
+    mid = model_id or config.llm.model_id
+
+    # Check if already loaded
+    try:
+        resp = httpx.get(f"{config.llm.base_url}/models", timeout=10)
+        resp.raise_for_status()
+        loaded = [m["id"] for m in resp.json().get("data", [])]
+        if mid in loaded:
+            logger.debug("Model '%s' already loaded", mid)
+            return True
+    except Exception as e:
+        logger.warning("Could not check loaded models: %s", e)
+
+    # Not loaded — trigger load via LM Studio API
+    logger.info("Model '%s' not loaded, triggering load...", mid)
+    api = _lmstudio_api_base()
+    try:
+        resp = httpx.post(
+            f"{api}/api/v1/models/load",
+            json={"model": mid},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        logger.info("Model '%s' loaded successfully", mid)
+        return True
+    except Exception as e:
+        logger.error("Failed to load model '%s': %s", mid, e)
+        return False
+
+
 def server_reload_model(model_id: str, context_length: int) -> str:
     """Unload then reload a model on the LLM server with a new context window.
 

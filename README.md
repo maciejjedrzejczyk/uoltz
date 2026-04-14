@@ -63,10 +63,14 @@ Start your local LLM with tool-calling support:
 **Option A — Host mode** (recommended for development, gives access to local filesystem):
 
 ```bash
-./scripts/run-host.sh
+./scripts/run-host.sh              # interactive (Ctrl+C to stop)
+./scripts/run-host.sh --background # run in background (PID tracked)
+./scripts/run-host.sh --stop       # stop background bot, switch to Docker mode
 ```
 
 Automatically: checks prerequisites → installs missing tools → stops any Docker bot → sets up Python venv → installs dependencies → launches the bot. Signal-api runs in Docker.
+
+In background mode, the bot logs to `data/bot.log` and its PID is stored in `data/.bot.pid`. Use `tail -f data/bot.log` to follow output. The `down.sh` and `reload.sh` scripts automatically detect and stop background processes.
 
 **Option B — Docker mode** (fully containerized):
 
@@ -78,17 +82,23 @@ Builds and starts both signal-api and the bot as containers.
 
 ### 4. Connect Signal
 
-**Link an existing account** (recommended):
+**Link an existing account** (recommended for shared use):
 
 1. Open `http://localhost:9922/v1/qrcodelink?device_name=signal-agent`
 2. On your phone: Signal → Settings → Linked Devices → scan the QR code
 
-**Register a new number:**
+**Register a dedicated bot number:**
+
+See [REGISTRATION.md](REGISTRATION.md) for the full step-by-step guide with troubleshooting. Quick version:
 
 ```bash
-# May require a captcha — see app/skills/signal_admin/account.py for details
-curl -X POST http://localhost:9922/v1/register/+1234567890
-curl -X POST http://localhost:9922/v1/register/+1234567890/verify/CODE
+# 1. Get a captcha from https://signalcaptchas.org/registration/generate.html
+# 2. Register (replace number and token)
+curl -X POST "http://localhost:9922/v1/register/+1234567890" \
+  -H "Content-Type: application/json" \
+  -d '{"captcha": "CAPTCHA_TOKEN", "use_voice": false}'
+# 3. Verify with SMS code (do this immediately)
+curl -X POST "http://localhost:9922/v1/register/+1234567890/verify/CODE"
 ```
 
 ### 5. Send a message
@@ -181,8 +191,9 @@ All scripts include prerequisite checks and will guide you through installing mi
 
 | Script | Description |
 |--------|-------------|
-| `scripts/run-host.sh` | Run bot on host (checks prereqs, sets up venv, launches) |
-| `scripts/run-host.sh --stop` | Switch .env back to Docker mode |
+| `scripts/run-host.sh` | Run bot on host interactively (checks prereqs, sets up venv, launches) |
+| `scripts/run-host.sh --background` | Run bot on host in background (PID in `data/.bot.pid`, logs in `data/bot.log`) |
+| `scripts/run-host.sh --stop` | Stop background bot, switch .env back to Docker mode |
 | `scripts/run-docker.sh` | Switch to Docker mode and start containers |
 | `scripts/up.sh` | Build + start all Docker services |
 | `scripts/down.sh` | Stop all Docker services |

@@ -12,7 +12,7 @@ class RuntimeState:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._markdown = True
+        self._markdown = False
         self._debug = False
         self._max_tokens: int | None = None  # None = use config default
 

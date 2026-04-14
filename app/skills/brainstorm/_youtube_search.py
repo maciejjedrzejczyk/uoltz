@@ -2,7 +2,6 @@
 
 import logging
 from strands import tool
-from skills.youtube_summary.youtube import _extract_url, _get_transcript_captions
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +18,8 @@ def youtube_search(url: str) -> str:
     Args:
         url: A YouTube video URL.
     """
+    from skills.youtube_summary.youtube import _extract_url, _get_transcript_captions
+
     yt_url = _extract_url(url) or url.strip()
     logger.info("Extracting transcript for brainstorm: %s", yt_url)
 
